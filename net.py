@@ -6,8 +6,6 @@
 # license that can be found in the LICENSE file or at
 # https://opensource.org/licenses/MIT.
 
-
-# MTGNN模型结构
 """ The main MTGNN model """
 import numpy as np
 from layer import *
