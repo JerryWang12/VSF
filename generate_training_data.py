@@ -1,4 +1,3 @@
-# generate_training_data.py
 # Copyright 2022 Google LLC
 # Copyright (c) 2020 Zonghan Wu
 
