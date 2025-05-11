@@ -1,3 +1,5 @@
+# trainer.py
+
 # Copyright 2022 Google LLC
 # Copyright (c) 2020 Zonghan Wu
 
@@ -5,9 +7,6 @@
 # license that can be found in the LICENSE file or at
 # https://opensource.org/licenses/MIT.
 
-# trainer.py
-
-# 训练核心 (包含优化器等)
 """ The code containing Trainer class and optimizer """
 import torch.optim as optim
 import math
