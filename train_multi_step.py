@@ -18,7 +18,7 @@ from net import gtnet
 import ast
 from copy import deepcopy
 
-from vsf_non_structure import NonStructureVSFModel, get_dataloader
+from vsf_non_structure.py import NonStructureVSFModel, get_dataloader
 
 
 def str_to_bool(value):
