@@ -6,8 +6,6 @@
 # license that can be found in the LICENSE file or at
 # https://opensource.org/licenses/MIT.
 
-
-# 基础网络层定义
 """ The base layers for the model """
 from __future__ import division
 import torch
