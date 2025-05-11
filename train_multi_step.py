@@ -143,13 +143,6 @@ def main(runid):
         train_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='train')
         val_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='val')
         test_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='test')
-    else:
-        # 原有的 MTGNN / Wrapper 数据加载逻辑
-        dataloader = load_dataset(args, args.data, args.batch_size, args.batch_size, args.batch_size)
-        scaler = dataloader['scaler']
-        train_loader = dataloader['train_loader']
-        val_loader = dataloader['val_loader']
-        test_loader = dataloader['test_loader']
     
     if args.predefined_S:
         assert args.epochs > 0, "Can't keep num epochs to 0 in oracle setting since the oracle idxs may change"
@@ -269,7 +262,26 @@ def main(runid):
                   f"Recon Loss: {val_recon_loss / len(val_loader):.4f}, "
                   f"KL Loss: {val_kl_loss / len(val_loader):.4f}")
 
-    else:
+        # === 推理 ===
+        model.eval()
+        all_preds = []
+        all_targets = []
+        with torch.no_grad():
+            for x, mask, target in test_loader:
+                x, mask, target = x.to(device), mask.to(device), target.to(device)
+                recon_x, _, _ = model(x, mask)
+                all_preds.append(recon_x.cpu().numpy())
+                all_targets.append(target.cpu().numpy())
+
+        # 计算 MAE 和 RMSE
+        yhat = np.concatenate(all_preds, axis=0)
+        real = np.concatenate(all_targets, axis=0)
+        mae, rmse, _, _ = metric(torch.tensor(yhat), torch.tensor(real))
+        print(f"Non-Structure VSF Test MAE: {mae:.4f}, Test RMSE: {rmse:.4f}")
+
+        return
+
+
         
     for i in range(1, args.epochs+1):
         train_loss = []
