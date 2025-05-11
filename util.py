@@ -1,3 +1,5 @@
+# util.py
+
 # Copyright 2022 Google LLC
 # Copyright (c) 2020 Zonghan Wu
 
@@ -5,9 +7,6 @@
 # license that can be found in the LICENSE file or at
 # https://opensource.org/licenses/MIT.
 
-# util.py
-
-# 通用工具 (数据处理、mask生成)
 """ Primary utilities """
 import pickle
 import numpy as np
