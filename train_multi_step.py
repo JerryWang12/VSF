@@ -18,6 +18,8 @@ from net import gtnet
 import ast
 from copy import deepcopy
 
+from vsf_non_structure import NonStructureVSFModel, get_dataloader
+
 
 def str_to_bool(value):
     if isinstance(value, bool):
@@ -30,6 +32,15 @@ def str_to_bool(value):
 
 
 parser = argparse.ArgumentParser()
+
+# vsf_non_structure
+parser.add_argument('--vsf_non_structure', type=str_to_bool, default=False, help='Use VSF Non-Structure model')
+parser.add_argument('--vsf_non_structure_data', type=str, default='./data/SOLAR_non_structural', help='Path to VSF non-structure data')
+parser.add_argument('--embed_dim', type=int, default=64, help='Embedding dimension for VSF non-structure model')
+parser.add_argument('--latent_dim', type=int, default=32, help='Latent dimension for VSF non-structure model')
+parser.add_argument('--num_heads', type=int, default=4, help='Number of attention heads for VSF non-structure model')
+parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate for VSF non-structure model')
+
 
 parser.add_argument('--device',type=str,default='cuda:0',help='')
 parser.add_argument('--data',type=str,default='data/METR-LA',help='data path')
@@ -111,12 +122,41 @@ torch.set_num_threads(3)
 
 
 def main(runid):
+    device = torch.device(args.device)
+
+    # Non-Structure VSF模型初始化
+    
+    if args.vsf_non_structure:
+        print("\nInitializing VSF Non-Structure Model...\n")
+        num_vars = 137  # 设置为具体数据集的变量数量
+        model = NonStructureVSFModel(
+            num_vars=num_vars,
+            embed_dim=args.embed_dim,
+            latent_dim=args.latent_dim,
+            num_heads=args.num_heads,
+            dropout=args.dropout
+        ).to(device)
+
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
+
+        # 使用Non-Structure数据加载器
+        train_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='train')
+        val_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='val')
+        test_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='test')
+    else:
+        # 原有的 MTGNN / Wrapper 数据加载逻辑
+        dataloader = load_dataset(args, args.data, args.batch_size, args.batch_size, args.batch_size)
+        scaler = dataloader['scaler']
+        train_loader = dataloader['train_loader']
+        val_loader = dataloader['val_loader']
+        test_loader = dataloader['test_loader']
+    
     if args.predefined_S:
         assert args.epochs > 0, "Can't keep num epochs to 0 in oracle setting since the oracle idxs may change"
         assert args.random_node_idx_split_runs == 1, "no need for multiple random runs in oracle setting"
         assert args.lower_limit_random_node_selections == args.upper_limit_random_node_selections == 100, "upper and lower limit should be same and equal to 100 percent"
 
-    device = torch.device(args.device)
+    
     dataloader = load_dataset(args, args.data, args.batch_size, args.batch_size, args.batch_size)
     scaler = dataloader['scaler']
 
@@ -187,6 +227,50 @@ def main(runid):
     train_time = []
     minl = 1e5
 
+    # 训练阶段
+    if args.vsf_non_structure:
+        for epoch in range(1, args.epochs + 1):
+            model.train()
+            total_loss, total_recon_loss, total_kl_loss = 0, 0, 0
+            
+            for x, mask, target in train_loader:
+                x, mask, target = x.to(device), mask.to(device), target.to(device)
+                optimizer.zero_grad()
+
+                # 前向传播
+                recon_x, mu, logvar = model(x, mask)
+                loss, recon_loss, kl_loss = model.compute_loss(recon_x, x, mu, logvar, mask)
+
+                # 反向传播
+                loss.backward()
+                optimizer.step()
+
+                total_loss += loss.item()
+                total_recon_loss += recon_loss.item()
+                total_kl_loss += kl_loss.item()
+
+            print(f"Epoch [{epoch}/{args.epochs}], Total Loss: {total_loss / len(train_loader):.4f}, "
+                  f"Recon Loss: {total_recon_loss / len(train_loader):.4f}, "
+                  f"KL Loss: {total_kl_loss / len(train_loader):.4f}")
+
+            # === 验证 ===
+            model.eval()
+            val_loss, val_recon_loss, val_kl_loss = 0, 0, 0
+            with torch.no_grad():
+                for x, mask, target in val_loader:
+                    x, mask, target = x.to(device), mask.to(device), target.to(device)
+                    recon_x, mu, logvar = model(x, mask)
+                    loss, recon_loss, kl_loss = model.compute_loss(recon_x, x, mu, logvar, mask)
+                    val_loss += loss.item()
+                    val_recon_loss += recon_loss.item()
+                    val_kl_loss += kl_loss.item()
+
+            print(f"Validation Loss: {val_loss / len(val_loader):.4f}, "
+                  f"Recon Loss: {val_recon_loss / len(val_loader):.4f}, "
+                  f"KL Loss: {val_kl_loss / len(val_loader):.4f}")
+
+    else:
+        
     for i in range(1, args.epochs+1):
         train_loss = []
         train_rmse = []
@@ -257,11 +341,28 @@ def main(runid):
         print("The valid loss on best model is", str(round(his_loss[bestid],4)))
 
 
+    if args.vsf_non_structure:
+        model.eval()
+        all_preds = []
+        all_targets = []
+        with torch.no_grad():
+            for x, mask, target in test_loader:
+                x, mask, target = x.to(device), mask.to(device), target.to(device)
+                recon_x, _, _ = model(x, mask)
+                all_preds.append(recon_x.cpu().numpy())
+                all_targets.append(target.cpu().numpy())
+
+        # 计算 MAE 和 RMSE
+        yhat = np.concatenate(all_preds, axis=0)
+        real = np.concatenate(all_targets, axis=0)
+        mae, rmse, _, _ = metric(torch.tensor(yhat), torch.tensor(real))
+        print(f"Non-Structure VSF Test MAE: {mae:.4f}, Test RMSE: {rmse:.4f}")
+    else:
+
     engine.model.load_state_dict(torch.load(args.path_model_save + "exp" + str(args.expid) + "_" + str(runid) +".pth"))
     print("\nModel loaded\n")
 
     engine.model.eval()
-
 
     # Retrieval set as the training data
     if args.borrow_from_train_data:
