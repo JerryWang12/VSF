@@ -369,7 +369,7 @@ def main(runid):
         real = np.concatenate(all_targets, axis=0)
         mae, rmse, _, _ = metric(torch.tensor(yhat), torch.tensor(real))
         print(f"Non-Structure VSF Test MAE: {mae:.4f}, Test RMSE: {rmse:.4f}")
-    else:
+        
 
     engine.model.load_state_dict(torch.load(args.path_model_save + "exp" + str(args.expid) + "_" + str(runid) +".pth"))
     print("\nModel loaded\n")
