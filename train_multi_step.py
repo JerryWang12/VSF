@@ -125,10 +125,15 @@ def main(runid):
     device = torch.device(args.device)
 
     # Non-Structure VSF模型初始化
-    
     if args.vsf_non_structure:
         print("\nInitializing VSF Non-Structure Model...\n")
-        num_vars = 137  # 设置为具体数据集的变量数量
+        
+        # 获取实际的变量数量
+        data_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='train')
+        sample_data, _, _ = next(iter(data_loader))
+        num_vars = sample_data.shape[-1]
+        print(f"Detected number of variables (nodes) = {num_vars}")
+
         model = NonStructureVSFModel(
             num_vars=num_vars,
             embed_dim=args.embed_dim,
@@ -140,9 +145,13 @@ def main(runid):
         optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
         # 使用Non-Structure数据加载器
-        train_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='train')
+        train_loader = data_loader
         val_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='val')
         test_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='test')
+
+        # 直接跳过 MTGNN 初始化，避免冲突
+        print("Non-Structure VSF model initialized, skipping MTGNN initialization...")
+        return model, optimizer, train_loader, val_loader, test_loader
     
     if args.predefined_S:
         assert args.epochs > 0, "Can't keep num epochs to 0 in oracle setting since the oracle idxs may change"
@@ -196,23 +205,24 @@ def main(runid):
     if not os.path.exists(args.path_model_save):
         os.makedirs(args.path_model_save)
 
-    model = gtnet(args.gcn_true, args.buildA_true, args.gcn_depth, args.num_nodes,
-                    device, predefined_A=predefined_A,
-                    dropout=args.dropout, subgraph_size=args.subgraph_size,
-                    node_dim=args.node_dim,
-                    dilation_exponential=args.dilation_exponential,
-                    conv_channels=args.conv_channels, residual_channels=args.residual_channels,
-                    skip_channels=args.skip_channels, end_channels= args.end_channels,
-                    seq_length=args.seq_in_len, in_dim=args.in_dim, out_dim=args.seq_out_len,
-                    layers=args.layers, propalpha=args.propalpha, tanhalpha=args.tanhalpha, layer_norm_affline=True)
+    if not args.vsf_non_structure:
+        model = gtnet(args.gcn_true, args.buildA_true, args.gcn_depth, args.num_nodes,
+                        device, predefined_A=predefined_A,
+                        dropout=args.dropout, subgraph_size=args.subgraph_size,
+                        node_dim=args.node_dim,
+                        dilation_exponential=args.dilation_exponential,
+                        conv_channels=args.conv_channels, residual_channels=args.residual_channels,
+                        skip_channels=args.skip_channels, end_channels= args.end_channels,
+                        seq_length=args.seq_in_len, in_dim=args.in_dim, out_dim=args.seq_out_len,
+                        layers=args.layers, propalpha=args.propalpha, tanhalpha=args.tanhalpha, layer_norm_affline=True)
 
-    print('The recpetive field size is', model.receptive_field)
+        print('The recpetive field size is', model.receptive_field)
 
-    print(args)
-    nParams = sum([p.nelement() for p in model.parameters()])
-    print('Number of model parameters is', nParams)
+        print(args)
+        nParams = sum([p.nelement() for p in model.parameters()])
+        print('Number of model parameters is', nParams)
 
-    engine = Trainer(args, model, args.model_name, args.learning_rate, args.weight_decay, args.clip, args.step_size1, args.seq_out_len, scaler, device, args.cl)
+        engine = Trainer(args, model, args.model_name, args.learning_rate, args.weight_decay, args.clip, args.step_size1, args.seq_out_len, scaler, device, args.cl)
 
     print("start training...",flush=True)
     his_loss =[]
