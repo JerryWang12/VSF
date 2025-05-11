@@ -6,7 +6,6 @@
 # license that can be found in the LICENSE file or at
 # https://opensource.org/licenses/MIT.
 
-# 数据加载和预处理脚本
 """ Generating the data from disk files """
 from __future__ import absolute_import
 from __future__ import division
@@ -18,10 +17,6 @@ import numpy as np
 import os
 import pandas as pd
 
-import os
-import numpy as np
-import argparse
-from sklearn.preprocessing import StandardScaler
 
 def generate_graph_seq2seq_io_data(
         df, x_offsets, y_offsets, add_time_in_day=True, add_day_in_week=False, scaler=None
@@ -160,55 +155,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
     main(args)
 
-
-def generate_non_structural_data(ds_name, output_dir, dataset_filename, seq_len=12, pred_len=12):
-    os.makedirs(output_dir, exist_ok=True)
-
-    # 加载原始数据
-    print(f"Loading data from {dataset_filename}...")
-    raw_data = np.loadtxt(dataset_filename, delimiter=",")
-    print(f"Raw data shape: {raw_data.shape}")
-
-    # 归一化处理
-    scaler = StandardScaler()
-    raw_data = scaler.fit_transform(raw_data)
-
-    # 生成序列数据
-    num_samples = raw_data.shape[0] - seq_len - pred_len + 1
-    data = []
-    target = []
-
-    for i in range(num_samples):
-        data.append(raw_data[i : i + seq_len, :])
-        target.append(raw_data[i + seq_len : i + seq_len + pred_len, :])
-
-    # 转换为numpy数组
-    data = np.array(data)
-    target = np.array(target)
-    print(f"Processed data shape: {data.shape}, target shape: {target.shape}")
-
-    # 数据拆分
-    num_train = int(0.7 * len(data))
-    num_val = int(0.15 * len(data))
-    num_test = len(data) - num_train - num_val
-
-    # 保存数据
-    np.save(os.path.join(output_dir, "train_data.npy"), data[:num_train])
-    np.save(os.path.join(output_dir, "val_data.npy"), data[num_train:num_train + num_val])
-    np.save(os.path.join(output_dir, "test_data.npy"), data[num_train + num_val:])
-
-    np.save(os.path.join(output_dir, "train_target.npy"), target[:num_train])
-    np.save(os.path.join(output_dir, "val_target.npy"), target[num_train:num_train + num_val])
-    np.save(os.path.join(output_dir, "test_target.npy"), target[num_train + num_val:])
-
-    print(f"Data saved to {output_dir}")
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Generate Non-Structural VSF Dataset")
-    parser.add_argument("--ds_name", type=str, default="solar", help="Dataset name")
-    parser.add_argument("--output_dir", type=str, default="./data/solar_non_structural", help="Output directory")
-    parser.add_argument("--dataset_filename", type=str, required=True, help="Input raw dataset file")
-    args = parser.parse_args()
-
-    generate_non_structural_data(args.ds_name, args.output_dir, args.dataset_filename)
