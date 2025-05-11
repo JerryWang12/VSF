@@ -1,3 +1,5 @@
+# train_multi_step.py
+
 # Copyright 2022 Google LLC
 # Copyright (c) 2020 Zonghan Wu
 
@@ -5,9 +7,6 @@
 # license that can be found in the LICENSE file or at
 # https://opensource.org/licenses/MIT.
 
-# train_multi_step.py
-
-# 主训练脚本 (Partial, Oracle, Wrapper 实现)
 """ The primary training script with our wrapper technique """
 import torch
 import numpy as np
@@ -18,12 +17,6 @@ from trainer import Trainer
 from net import gtnet
 import ast
 from copy import deepcopy
-
-
-
-
-from data.non_structural_vsf_dataset import NonStructuralVSFDataset
-from models.non_structural_vsf_model import NonStructuralVSFModel
 
 
 def str_to_bool(value):
@@ -111,13 +104,6 @@ parser.add_argument('--use_ewp', type=str_to_bool, default=False, help="whether 
 
 parser.add_argument('--fraction_prots', type=float, default=1.0, help="fraction of the training data to be used as the Retrieval Set")
 
-# VSF-nonStructure 参数
-parser.add_argument('--non_structure', type=str_to_bool, default=False, help='whether to use the non-structure VSF model')
-parser.add_argument('--embed_dim', type=int, default=64, help='embedding dimension for non-structure VSF model')
-parser.add_argument('--latent_dim', type=int, default=32, help='latent dimension for non-structure VSF model')
-parser.add_argument('--num_layers', type=int, default=4, help='number of attention layers for non-structure VSF model')
-parser.add_argument('--num_heads', type=int, default=4, help='number of attention heads for non-structure VSF model')
-parser.add_argument('--dropout', type=float, default=0.1, help='dropout for non-structure VSF model')
 
 
 args = parser.parse_args()
@@ -125,34 +111,6 @@ torch.set_num_threads(3)
 
 
 def main(runid):
-
-        # 初始化数据集
-    if args.non_structure:
-        # 使用非结构感知的数据集
-        train_dataset = NonStructuralVSFDataset(data_path=args.data, split="train")
-        val_dataset = NonStructuralVSFDataset(data_path=args.data, split="val")
-        test_dataset = NonStructuralVSFDataset(data_path=args.data, split="test")
-
-        train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False)
-        test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False)
-
-        # 更新节点数量
-        args.num_nodes = train_dataset.data.shape[-1]
-        print(f"Number of variables/nodes for non-structure VSF = {args.num_nodes}")
-
-    else:
-        # 使用已有的数据加载逻辑
-        dataloader = load_dataset(args, args.data, args.batch_size, args.batch_size, args.batch_size)
-        train_loader = dataloader['train_loader']
-        val_loader = dataloader['val_loader']
-        test_loader = dataloader['test_loader']
-        scaler = dataloader['scaler']
-        args.num_nodes = dataloader['train_loader'].num_nodes
-        print(f"Number of variables/nodes for graph-based model = {args.num_nodes}")
-
-
-    
     if args.predefined_S:
         assert args.epochs > 0, "Can't keep num epochs to 0 in oracle setting since the oracle idxs may change"
         assert args.random_node_idx_split_runs == 1, "no need for multiple random runs in oracle setting"
