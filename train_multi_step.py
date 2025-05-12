@@ -38,7 +38,6 @@ parser.add_argument('--vsf_non_structure_data', type=str, default='./data/SOLAR_
 parser.add_argument('--embed_dim', type=int, default=64, help='Embedding dimension for VSF non-structure model')
 parser.add_argument('--latent_dim', type=int, default=32, help='Latent dimension for VSF non-structure model')
 parser.add_argument('--num_heads', type=int, default=4, help='Number of attention heads for VSF non-structure model')
-parser.add_argument('--dropout', type=float, default=0.1, help='Dropout rate for VSF non-structure model')
 
 
 parser.add_argument('--device',type=str,default='cuda:0',help='')
