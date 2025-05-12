@@ -1,5 +1,3 @@
-vsf_non_structure.py
-
 import os
 import math
 import torch
