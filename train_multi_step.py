@@ -266,18 +266,17 @@ def main(runid):
                 # === 2. 使用 MTGNN 进行最终预测 ===
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, D, T)
 
-                input_train, target_train = train_loader.dataset[:]
-                num_nodes = input_train.shape[2]  # 从训练数据中获取变量数量
+                sample_input, sample_target = next(iter(train_loader))
+                num_nodes = sample_input.shape[2]
                 idx_current_nodes = torch.arange(num_nodes).to(device)
+                
                 if args.structure == 'none':
-                    # recon_x 是非结构模型生成的补全结果，假设 shape = (B, T, N, E)
-                    recon_x = recon_x.permute(0, 3, 2, 1)  # -> (B, E, N, T)
-        
-                preds = mtgnn_model(
-                    recon_x,
-                    mask_remaining=args.mask_remaining,
-                    test_idx_subset=idx_current_nodes
-                )
+                    recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
+                    preds = mtgnn_model(
+                        recon_x,
+                        mask_remaining=args.mask_remaining,
+                        test_idx_subset=idx_current_nodes
+                    )
                 # === 3. 计算损失 ===
                 loss, recon_loss, kl_loss = vsf_model.compute_loss(preds, x, mu, logvar, mask)
                 loss.backward()
@@ -309,17 +308,17 @@ def main(runid):
                 # 使用MTGNN预测
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
 
-                input_train, target_train = train_loader.dataset[:]
-                num_nodes = input_train.shape[2]  # 从训练数据中获取变量数量
+                sample_input, sample_target = next(iter(train_loader))
+                num_nodes = sample_input.shape[2]
                 idx_current_nodes = torch.arange(num_nodes).to(device)
+                
                 if args.structure == 'none':
-                    # recon_x 是非结构模型生成的补全结果，假设 shape = (B, T, N, E)
-                    recon_x = recon_x.permute(0, 3, 2, 1)  # -> (B, E, N, T)
-                preds = mtgnn_model(
-                    recon_x,             
-                    mask_remaining=args.mask_remaining,
-                    test_idx_subset=idx_current_nodes
-                )
+                    recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
+                    preds = mtgnn_model(
+                        recon_x,
+                        mask_remaining=args.mask_remaining,
+                        test_idx_subset=idx_current_nodes
+                    )
                 all_preds.append(preds.cpu().numpy())
                 all_targets.append(target.cpu().numpy())
 
