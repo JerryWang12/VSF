@@ -128,20 +128,27 @@ class NonStructuralVSFDataset(Dataset):
     def __init__(self, data_dir, split='train', seq_len=12, pred_len=12, mask_ratio=0.15, seed=42):
         np.random.seed(seed)
 
-        # 修改数据文件名
+        # 读取 .npz 数据
         data_file = os.path.join(data_dir, f"{split}.npz")
         if not os.path.exists(data_file):
             raise FileNotFoundError(f"数据文件 {data_file} 不存在，请检查路径和文件名是否正确。")
         
-        # 读取 .npz 数据
+        # 加载数据
         data = np.load(data_file)
-        self.data = data['x']
-        self.target = data['y']
+        self.data = data['x']  # (samples, seq_len, num_vars, 1)
+        self.target = data['y']  # (samples, seq_len, num_vars, 1)
+
+        # 移除可能存在的额外通道维度
+        if self.data.ndim == 4 and self.data.shape[-1] == 1:
+            self.data = self.data.squeeze(-1)
+            self.target = self.target.squeeze(-1)
+
+        print(f"Loaded {split} data with shape: {self.data.shape}, {self.target.shape}")
+
+        # 生成 masks
         self.seq_len = seq_len
         self.pred_len = pred_len
         self.masks = self._generate_masks(mask_ratio)
-
-        print(f"Loaded {split} data with shape: {self.data.shape}, {self.target.shape}")
 
     def _generate_masks(self, mask_ratio):
         masks = np.ones_like(self.data, dtype=np.float32)
@@ -166,8 +173,6 @@ class NonStructuralVSFDataset(Dataset):
 def get_dataloader(data_dir, batch_size=64, split='train'):
     dataset = NonStructuralVSFDataset(data_dir, split=split)
     return DataLoader(dataset, batch_size=batch_size, shuffle=(split == 'train'))
-
-
 
 # 测试完整流程
 if __name__ == "__main__":
