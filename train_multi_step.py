@@ -131,6 +131,7 @@ def main(runid):
         
         # 获取变量数量
         sample_batch = next(iter(train_loader))
+        sample_data = sample_batch[0]  
         num_vars = sample_data.shape[-1]
         print(f"Detected number of variables (nodes) = {num_vars}")
 
