@@ -122,34 +122,51 @@ torch.set_num_threads(3)
 def main(runid):
     device = torch.device(args.device)
 
-    # Non-Structure VSF模型初始化
-    if args.vsf_non_structure:
+    # Non-Structure VSF初始化
+     if args.vsf_non_structure:
         print("\nInitializing VSF Non-Structure Model...\n")
+        train_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='train')
+        val_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='val')
+        test_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='test')
         
-        # 获取实际的变量数量
-        data_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='train')
-        sample_data, _, _ = next(iter(data_loader))
+        # 获取变量数量
+        sample_data, _, _ = next(iter(train_loader))
         num_vars = sample_data.shape[-1]
         print(f"Detected number of variables (nodes) = {num_vars}")
 
-        model = NonStructureVSFModel(
+        # === 初始化 Non-Structure VSF 模型 ===
+        vsf_model = NonStructureVSFModel(
             num_vars=num_vars,
             embed_dim=args.embed_dim,
             latent_dim=args.latent_dim,
             num_heads=args.num_heads,
             dropout=args.dropout
         ).to(device)
+        vsf_optimizer = torch.optim.Adam(vsf_model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
 
-        optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
-
-        # 使用Non-Structure数据加载器
-        train_loader = data_loader
-        val_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='val')
-        test_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='test')
-
-        # 直接跳过 MTGNN 初始化，避免冲突
-        print("Non-Structure VSF model initialized, skipping MTGNN initialization...")
-        return model, optimizer, train_loader, val_loader, test_loader
+        # === 初始化 MTGNN 模型 ===
+        mtgnn_model = gtnet(
+            gcn_true=True,
+            buildA_true=True,
+            gcn_depth=2,
+            num_nodes=num_vars,
+            device=device,
+            dropout=args.dropout,
+            subgraph_size=20,
+            node_dim=40,
+            dilation_exponential=1,
+            conv_channels=32,
+            residual_channels=32,
+            skip_channels=64,
+            end_channels=128,
+            seq_length=args.seq_in_len,
+            in_dim=args.embed_dim,
+            out_dim=args.seq_out_len,
+            layers=3,
+            propalpha=0.05,
+            tanhalpha=3,
+            layer_norm_affline=True
+        ).to(device)
     
     if args.predefined_S:
         assert args.epochs > 0, "Can't keep num epochs to 0 in oracle setting since the oracle idxs may change"
@@ -231,20 +248,25 @@ def main(runid):
     # 训练阶段
     if args.vsf_non_structure:
         for epoch in range(1, args.epochs + 1):
-            model.train()
+            vsf_model.train()
+            mtgnn_model.train()
             total_loss, total_recon_loss, total_kl_loss = 0, 0, 0
             
             for x, mask, target in train_loader:
                 x, mask, target = x.to(device), mask.to(device), target.to(device)
-                optimizer.zero_grad()
+                vsf_optimizer.zero_grad()
 
-                # 前向传播
-                recon_x, mu, logvar = model(x, mask)
-                loss, recon_loss, kl_loss = model.compute_loss(recon_x, x, mu, logvar, mask)
+                # === 1. 补全缺失数据 ===
+                recon_x, mu, logvar = vsf_model(x, mask)
 
-                # 反向传播
+                # === 2. 使用 MTGNN 进行最终预测 ===
+                recon_x = recon_x.permute(0, 2, 1).unsqueeze(1)  # (B, 1, N, T)
+                preds = mtgnn_model(recon_x).squeeze(1).permute(0, 2, 1)
+
+                # === 3. 计算损失 ===
+                loss, recon_loss, kl_loss = vsf_model.compute_loss(preds, x, mu, logvar, mask)
                 loss.backward()
-                optimizer.step()
+                vsf_optimizer.step()
 
                 total_loss += loss.item()
                 total_recon_loss += recon_loss.item()
@@ -254,40 +276,31 @@ def main(runid):
                   f"Recon Loss: {total_recon_loss / len(train_loader):.4f}, "
                   f"KL Loss: {total_kl_loss / len(train_loader):.4f}")
 
-            # === 验证 ===
-            model.eval()
-            val_loss, val_recon_loss, val_kl_loss = 0, 0, 0
-            with torch.no_grad():
-                for x, mask, target in val_loader:
-                    x, mask, target = x.to(device), mask.to(device), target.to(device)
-                    recon_x, mu, logvar = model(x, mask)
-                    loss, recon_loss, kl_loss = model.compute_loss(recon_x, x, mu, logvar, mask)
-                    val_loss += loss.item()
-                    val_recon_loss += recon_loss.item()
-                    val_kl_loss += kl_loss.item()
-
-            print(f"Validation Loss: {val_loss / len(val_loader):.4f}, "
-                  f"Recon Loss: {val_recon_loss / len(val_loader):.4f}, "
-                  f"KL Loss: {val_kl_loss / len(val_loader):.4f}")
-
-        # === 推理 ===
-        model.eval()
-        all_preds = []
-        all_targets = []
-        with torch.no_grad():
-            for x, mask, target in test_loader:
-                x, mask, target = x.to(device), mask.to(device), target.to(device)
-                recon_x, _, _ = model(x, mask)
-                all_preds.append(recon_x.cpu().numpy())
-                all_targets.append(target.cpu().numpy())
-
-        # 计算 MAE 和 RMSE
-        yhat = np.concatenate(all_preds, axis=0)
-        real = np.concatenate(all_targets, axis=0)
-        mae, rmse, _, _ = metric(torch.tensor(yhat), torch.tensor(real))
-        print(f"Non-Structure VSF Test MAE: {mae:.4f}, Test RMSE: {rmse:.4f}")
+        # === 保存模型 ===
+        model_save_path = f"./saved_models/{args.model_name}/exp{args.expid}_{runid}.pth"
+        torch.save(mtgnn_model.state_dict(), model_save_path)
+        print(f"\nModel saved to {model_save_path}\n")
 
         return
+
+        # # === 推理 ===
+        # model.eval()
+        # all_preds = []
+        # all_targets = []
+        # with torch.no_grad():
+        #     for x, mask, target in test_loader:
+        #         x, mask, target = x.to(device), mask.to(device), target.to(device)
+        #         recon_x, _, _ = model(x, mask)
+        #         all_preds.append(recon_x.cpu().numpy())
+        #         all_targets.append(target.cpu().numpy())
+
+        # # 计算 MAE 和 RMSE
+        # yhat = np.concatenate(all_preds, axis=0)
+        # real = np.concatenate(all_targets, axis=0)
+        # mae, rmse, _, _ = metric(torch.tensor(yhat), torch.tensor(real))
+        # print(f"Non-Structure VSF Test MAE: {mae:.4f}, Test RMSE: {rmse:.4f}")
+
+        # return
 
 
         
