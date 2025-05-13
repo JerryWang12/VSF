@@ -282,9 +282,37 @@ def main(runid):
         # === 保存模型 ===
         model_save_path = f"./saved_models/{args.model_name}/exp{args.expid}_{runid}.pth"
         torch.save(mtgnn_model.state_dict(), model_save_path)
-        print(f"\nModel saved to {model_save_path}\n")
+        print(f"\nModel saved to {model_save_path}\n")    
 
-        return [], []
+         # === 测试阶段 ===
+        vsf_model.eval()
+        mtgnn_model.eval()
+        all_preds = []
+        all_targets = []
+        with torch.no_grad():
+            for x, mask, target in test_loader:
+                x, mask, target = x.to(device), mask.to(device), target.to(device)
+                # 补全数据
+                recon_x, mu, logvar = vsf_model(x, mask)
+                # 使用MTGNN预测
+                recon_x = recon_x.permute(0, 2, 1).unsqueeze(1)
+                preds = mtgnn_model(recon_x).squeeze(1).permute(0, 2, 1)
+                all_preds.append(preds.cpu().numpy())
+                all_targets.append(target.cpu().numpy())
+
+        # 计算各时间步指标
+        yhat = np.concatenate(all_preds, axis=0)
+        real = np.concatenate(all_targets, axis=0)
+        mae_list = []
+        rmse_list = []
+        for i in range(args.seq_out_len):
+            pred_i = yhat[..., i]
+            real_i = real[..., i]
+            mae_val, rmse_val, _, _ = metric(torch.tensor(pred_i), torch.tensor(real_i))
+            mae_list.append(mae_val)
+            rmse_list.append(rmse_val)
+        # 返回结构一致的列表
+        return mae_list, rmse_list
 
 
         
