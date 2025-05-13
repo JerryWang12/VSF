@@ -30,11 +30,11 @@ class VariatesEmbedding(nn.Module):
         var_embed = self.var_embedding(torch.arange(D, device=device))  # (D, E)
 
         # 时间位置信息 (T, E)
-        pos_embed = self.position_encoding[:T, :].to(device)
+        pos_embed = self.position_encoding[:T, :].to(device)  # (T, E)
 
-        # 复制到 B, T, D, E
-        var_embed = var_embed.unsqueeze(0).unsqueeze(0).expand(B, T, D, -1)
-        pos_embed = pos_embed.unsqueeze(0).unsqueeze(1).expand(B, -1, D, -1)
+        # 扩展维度到 (B, T, D, E)
+        var_embed = var_embed[None, None, :, :].expand(B, T, -1, -1) 
+        pos_embed = pos_embed[None, :, None, :].expand(B, -1, D, -1) 
 
         # 加入时间位置信息
         return var_embed + pos_embed
