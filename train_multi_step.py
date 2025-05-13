@@ -284,26 +284,7 @@ def main(runid):
         torch.save(mtgnn_model.state_dict(), model_save_path)
         print(f"\nModel saved to {model_save_path}\n")
 
-        return
-
-        # # === 推理 ===
-        # model.eval()
-        # all_preds = []
-        # all_targets = []
-        # with torch.no_grad():
-        #     for x, mask, target in test_loader:
-        #         x, mask, target = x.to(device), mask.to(device), target.to(device)
-        #         recon_x, _, _ = model(x, mask)
-        #         all_preds.append(recon_x.cpu().numpy())
-        #         all_targets.append(target.cpu().numpy())
-
-        # # 计算 MAE 和 RMSE
-        # yhat = np.concatenate(all_preds, axis=0)
-        # real = np.concatenate(all_targets, axis=0)
-        # mae, rmse, _, _ = metric(torch.tensor(yhat), torch.tensor(real))
-        # print(f"Non-Structure VSF Test MAE: {mae:.4f}, Test RMSE: {rmse:.4f}")
-
-        # return
+        return [], []
 
 
         
