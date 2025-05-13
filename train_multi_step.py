@@ -265,6 +265,7 @@ def main(runid):
 
                 # === 2. 使用 MTGNN 进行最终预测 ===
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, D, T)
+                num_nodes = input_train.shape[2]  # 从训练数据中获取变量数量
                 idx_current_nodes = torch.arange(num_nodes).to(device)
                 preds = mtgnn_model(
                     recon_x,
@@ -301,6 +302,7 @@ def main(runid):
                 recon_x, mu, logvar = vsf_model(x, mask)
                 # 使用MTGNN预测
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
+                num_nodes = input_train.shape[2]  # 从训练数据中获取变量数量
                 idx_current_nodes = torch.arange(num_nodes).to(device)
                 preds = mtgnn_model(
                     recon_x,             
