@@ -264,7 +264,7 @@ def main(runid):
                 recon_x, mu, logvar = vsf_model(x, mask)
 
                 # === 2. 使用 MTGNN 进行最终预测 ===
-                recon_x = recon_x.permute(0, 2, 1).unsqueeze(1)  # (B, 1, N, T)
+                recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, D, T)
                 preds = mtgnn_model(recon_x).squeeze(1).permute(0, 2, 1)
 
                 # === 3. 计算损失 ===
