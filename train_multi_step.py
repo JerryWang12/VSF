@@ -130,7 +130,7 @@ def main(runid):
         test_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='test')
         
         # 获取变量数量
-        sample_data, _, _ = next(iter(train_loader))
+        sample_batch = next(iter(train_loader))
         num_vars = sample_data.shape[-1]
         print(f"Detected number of variables (nodes) = {num_vars}")
 
