@@ -105,25 +105,43 @@ class DualBranchAttention(nn.Module):
 class CVAE(nn.Module):
     def __init__(self, embed_dim, latent_dim=32):
         super().__init__()
+        # 编码器保持原样
         self.encoder_mu = nn.Linear(embed_dim, latent_dim)
         self.encoder_logvar = nn.Linear(embed_dim, latent_dim)
-        self.decoder = nn.Linear(latent_dim + embed_dim, embed_dim)
+        
+        # 解码器输入维度调整为 latent_dim + embed_dim
+        self.decoder = nn.Sequential(
+            nn.Linear(latent_dim + embed_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, embed_dim)
+        )
 
     def forward(self, x):
         B, T, D, E = x.size()
-        # 压缩到 (B, D, E)
+        
+        # === 编码阶段 ===
+        # 沿时间维度取均值 (B, T, D, E) -> (B, D, E)
         x_flat = x.mean(dim=1)
-
-        # CVAE编码
+        
+        # 生成潜在变量 (B, D, latent_dim)
         mu = self.encoder_mu(x_flat)
         logvar = self.encoder_logvar(x_flat)
         std = torch.exp(0.5 * logvar)
-        z = mu + std * torch.randn_like(std)
-
-        # CVAE解码
-        z_expanded = z.unsqueeze(1).expand(-1, T, -1)
-        x_decoded = self.decoder(torch.cat([x.mean(dim=2), z_expanded], dim=-1))
-
+        z = mu + std * torch.randn_like(std)  # (B, D, latent_dim)
+        
+        # === 解码阶段 ===
+        # 扩展潜在变量到时间维度 (B, D, latent_dim) -> (B, T, D, latent_dim)
+        z_expanded = z.unsqueeze(1).expand(-1, T, -1, -1)
+        
+        # 获取时序特征 (B, T, D, E)
+        time_feature = x  # 原始输入已包含时序信息
+        
+        # 拼接特征 (B, T, D, latent_dim + E)
+        combined = torch.cat([time_feature, z_expanded], dim=-1)
+        
+        # 解码重构 (B, T, D, E)
+        x_decoded = self.decoder(combined)
+        
         return x_decoded, mu, logvar
 
     def compute_loss(self, recon_x, x, mu, logvar, mask):
