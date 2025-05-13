@@ -296,7 +296,7 @@ def main(runid):
                 # 补全数据
                 recon_x, mu, logvar = vsf_model(x, mask)
                 # 使用MTGNN预测
-                recon_x = recon_x.permute(0, 2, 1).unsqueeze(1)
+                recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
                 preds = mtgnn_model(recon_x).squeeze(1).permute(0, 2, 1)
                 all_preds.append(preds.cpu().numpy())
                 all_targets.append(target.cpu().numpy())
