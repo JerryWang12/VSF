@@ -265,8 +265,14 @@ def main(runid):
 
                 # === 2. 使用 MTGNN 进行最终预测 ===
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, D, T)
+
+                input_train, target_train = train_loader.dataset[:]
                 num_nodes = input_train.shape[2]  # 从训练数据中获取变量数量
                 idx_current_nodes = torch.arange(num_nodes).to(device)
+                if args.structure == 'none':
+                    # recon_x 是非结构模型生成的补全结果，假设 shape = (B, T, N, E)
+                    recon_x = recon_x.permute(0, 3, 2, 1)  # -> (B, E, N, T)
+        
                 preds = mtgnn_model(
                     recon_x,
                     mask_remaining=args.mask_remaining,
@@ -302,8 +308,13 @@ def main(runid):
                 recon_x, mu, logvar = vsf_model(x, mask)
                 # 使用MTGNN预测
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
+
+                input_train, target_train = train_loader.dataset[:]
                 num_nodes = input_train.shape[2]  # 从训练数据中获取变量数量
                 idx_current_nodes = torch.arange(num_nodes).to(device)
+                if args.structure == 'none':
+                    # recon_x 是非结构模型生成的补全结果，假设 shape = (B, T, N, E)
+                    recon_x = recon_x.permute(0, 3, 2, 1)  # -> (B, E, N, T)
                 preds = mtgnn_model(
                     recon_x,             
                     mask_remaining=args.mask_remaining,
