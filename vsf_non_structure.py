@@ -42,25 +42,32 @@ class VariatesEmbedding(nn.Module):
 
 # 2. 交互关系编码模块
 class DualBranchAttention(nn.Module):
-    def __init__(self, num_vars, embed_dim=64, num_heads=4, dropout=0.1):
+    def __init__(self, num_vars, seq_len, embed_dim=64, num_heads=4, dropout=0.1):
         super().__init__()
+        self.seq_len = seq_len
         self.num_vars = num_vars
         self.embed_dim = embed_dim
         
-        # 时间注意力分支
-        self.time_proj = nn.Linear(num_vars * embed_dim, embed_dim)
+        # ===== 时间注意力分支 =====
+        self.time_proj = nn.Linear(
+            num_vars * embed_dim,  # 输入维度 D*E (137 * 64=8768)
+            embed_dim             # 输出维度 E (64)
+        )
         self.time_attention = nn.MultiheadAttention(
-            embed_dim=embed_dim, 
-            num_heads=num_heads, 
+            embed_dim=embed_dim,
+            num_heads=num_heads,
             dropout=dropout,
             batch_first=True
         )
         
-        # 变量注意力分支
-        self.var_proj = nn.Linear(embed_dim, embed_dim)
+        # ===== 变量注意力分支 =====
+        self.var_proj = nn.Linear(
+            seq_len * embed_dim,   # 输入维度 T*E (12 * 64=768)
+            embed_dim             # 输出维度 E (64)
+        )
         self.var_attention = nn.MultiheadAttention(
-            embed_dim=embed_dim, 
-            num_heads=num_heads, 
+            embed_dim=embed_dim,
+            num_heads=num_heads,
             dropout=dropout,
             batch_first=True
         )
@@ -68,30 +75,30 @@ class DualBranchAttention(nn.Module):
     def forward(self, x):
         B, T, D, E = x.size()
         
-        # 时间维度注意力
-        # 输入形状: (B, T, D, E) -> (B, T, D*E)
+        # === 时间维度处理 ===
+        # 输入形状: (B, T, D, E) → (B, T, D*E)
         x_time = x.reshape(B, T, -1)
-        # 投影到embed_dim: (B, T, D*E) -> (B, T, E)
+        # 投影: (B, T, 8768) → (B, T, 64)
         x_time_proj = self.time_proj(x_time)
-        # 时间注意力
+        # 注意力计算
         time_attn, _ = self.time_attention(x_time_proj, x_time_proj, x_time_proj)
-        # 恢复形状: (B, T, E) -> (B, T, 1, E) -> 广播到 (B, T, D, E)
+        # 恢复形状: (B, T, 64) → (B, T, 1, 64) → 广播到 (B, T, 137, 64)
         time_attn = time_attn.unsqueeze(2).expand(-1, -1, D, -1)
         
-        # 变量维度注意力
-        # 输入形状: (B, T, D, E) -> (B, D, T, E)
+        # === 变量维度处理 ===
+        # 输入形状: (B, T, D, E) → (B, D, T, E)
         x_var = x.permute(0, 2, 1, 3)
-        # 投影到embed_dim: (B, D, T, E) -> (B, D, T*E)
+        # 展平: (B, D, 12, 64) → (B, D, 768)
         x_var_flat = x_var.reshape(B, D, -1)
-        x_var_proj = self.var_proj(x_var_flat)  # (B, D, E)
-        # 变量注意力
+        # 投影: (B, D, 768) → (B, D, 64)
+        x_var_proj = self.var_proj(x_var_flat)
+        # 注意力计算
         var_attn, _ = self.var_attention(x_var_proj, x_var_proj, x_var_proj)
-        # 恢复形状: (B, D, E) -> (B, D, 1, E) -> 广播到 (B, T, D, E)
+        # 恢复形状: (B, D, 64) → (B, D, 1, 64) → 广播到 (B, T, 137, 64)
         var_attn = var_attn.unsqueeze(2).permute(0, 2, 1, 3).expand(-1, T, -1, -1)
         
-        # 融合特征
-        combined = time_attn + var_attn
-        return combined
+        # 特征融合
+        return time_attn + var_attn
 
 
 # 3. 生成式补全模块
@@ -132,11 +139,12 @@ class CVAE(nn.Module):
 
 # 4. 自监督训练模块
 class NonStructureVSFModel(nn.Module):
-    def __init__(self, num_vars, embed_dim=64, latent_dim=32, num_heads=4, dropout=0.1):
+    def __init__(self, num_vars, seq_len, embed_dim=64, latent_dim=32, num_heads=4, dropout=0.1):
         super().__init__()
         self.embedding = VariatesEmbedding(num_vars, embed_dim)
         self.attention = DualBranchAttention(
-            num_vars=num_vars, 
+            num_vars=num_vars,
+            seq_len=seq_len,  # 新增seq_len参数
             embed_dim=embed_dim,
             num_heads=num_heads,
             dropout=dropout
