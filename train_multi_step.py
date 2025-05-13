@@ -249,92 +249,92 @@ def main(runid):
     train_time = []
     minl = 1e5
 
-    # 训练阶段
-    if args.vsf_non_structure:
-        for epoch in range(1, args.epochs + 1):
-            vsf_model.train()
-            mtgnn_model.train()
-            total_loss, total_recon_loss, total_kl_loss = 0, 0, 0
+    # # 训练阶段
+    # if args.vsf_non_structure:
+    #     for epoch in range(1, args.epochs + 1):
+    #         vsf_model.train()
+    #         mtgnn_model.train()
+    #         total_loss, total_recon_loss, total_kl_loss = 0, 0, 0
             
-            for x, mask, target in train_loader:
-                x, mask, target = x.to(device), mask.to(device), target.to(device)
-                vsf_optimizer.zero_grad()
+    #         for x, mask, target in train_loader:
+    #             x, mask, target = x.to(device), mask.to(device), target.to(device)
+    #             vsf_optimizer.zero_grad()
 
-                # === 1. 补全缺失数据 ===
-                recon_x, mu, logvar = vsf_model(x, mask)
+    #             # === 1. 补全缺失数据 ===
+    #             recon_x, mu, logvar = vsf_model(x, mask)
 
-                # === 2. 使用 MTGNN 进行最终预测 ===
-                recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, D, T)
+    #             # === 2. 使用 MTGNN 进行最终预测 ===
+    #             recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, D, T)
 
-                sample_input, sample_target = next(iter(train_loader))
-                num_nodes = sample_input.shape[2]
-                idx_current_nodes = torch.arange(num_nodes).to(device)
+    #             sample_input, sample_target = next(iter(train_loader))
+    #             num_nodes = sample_input.shape[2]
+    #             idx_current_nodes = torch.arange(num_nodes).to(device)
                 
-                if args.structure == 'none':
-                    recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
-                    preds = mtgnn_model(
-                        recon_x,
-                        mask_remaining=args.mask_remaining,
-                        test_idx_subset=idx_current_nodes
-                    )
-                # === 3. 计算损失 ===
-                loss, recon_loss, kl_loss = vsf_model.compute_loss(preds, x, mu, logvar, mask)
-                loss.backward()
-                vsf_optimizer.step()
+    #             if args.structure == 'none':
+    #                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
+    #                 preds = mtgnn_model(
+    #                     recon_x,
+    #                     mask_remaining=args.mask_remaining,
+    #                     test_idx_subset=idx_current_nodes
+    #                 )
+    #             # === 3. 计算损失 ===
+    #             loss, recon_loss, kl_loss = vsf_model.compute_loss(preds, x, mu, logvar, mask)
+    #             loss.backward()
+    #             vsf_optimizer.step()
 
-                total_loss += loss.item()
-                total_recon_loss += recon_loss.item()
-                total_kl_loss += kl_loss.item()
+    #             total_loss += loss.item()
+    #             total_recon_loss += recon_loss.item()
+    #             total_kl_loss += kl_loss.item()
 
-            print(f"Epoch [{epoch}/{args.epochs}], Total Loss: {total_loss / len(train_loader):.4f}, "
-                  f"Recon Loss: {total_recon_loss / len(train_loader):.4f}, "
-                  f"KL Loss: {total_kl_loss / len(train_loader):.4f}")
+    #         print(f"Epoch [{epoch}/{args.epochs}], Total Loss: {total_loss / len(train_loader):.4f}, "
+    #               f"Recon Loss: {total_recon_loss / len(train_loader):.4f}, "
+    #               f"KL Loss: {total_kl_loss / len(train_loader):.4f}")
 
-        # === 保存模型 ===
-        model_save_path = f"./saved_models/{args.model_name}/exp{args.expid}_{runid}.pth"
-        torch.save(mtgnn_model.state_dict(), model_save_path)
-        print(f"\nModel saved to {model_save_path}\n")    
+    #     # === 保存模型 ===
+    #     model_save_path = f"./saved_models/{args.model_name}/exp{args.expid}_{runid}.pth"
+    #     torch.save(mtgnn_model.state_dict(), model_save_path)
+    #     print(f"\nModel saved to {model_save_path}\n")    
 
-         # === 测试阶段 ===
-        vsf_model.eval()
-        mtgnn_model.eval()
-        all_preds = []
-        all_targets = []
-        with torch.no_grad():
-            for x, mask, target in test_loader:
-                x, mask, target = x.to(device), mask.to(device), target.to(device)
-                # 补全数据
-                recon_x, mu, logvar = vsf_model(x, mask)
-                # 使用MTGNN预测
-                recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
+    #      # === 测试阶段 ===
+    #     vsf_model.eval()
+    #     mtgnn_model.eval()
+    #     all_preds = []
+    #     all_targets = []
+    #     with torch.no_grad():
+    #         for x, mask, target in test_loader:
+    #             x, mask, target = x.to(device), mask.to(device), target.to(device)
+    #             # 补全数据
+    #             recon_x, mu, logvar = vsf_model(x, mask)
+    #             # 使用MTGNN预测
+    #             recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
 
-                sample_input, sample_target = next(iter(train_loader))
-                num_nodes = sample_input.shape[2]
-                idx_current_nodes = torch.arange(num_nodes).to(device)
+    #             sample_input, sample_target = next(iter(train_loader))
+    #             num_nodes = sample_input.shape[2]
+    #             idx_current_nodes = torch.arange(num_nodes).to(device)
                 
-                if args.structure == 'none':
-                    recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
-                    preds = mtgnn_model(
-                        recon_x,
-                        mask_remaining=args.mask_remaining,
-                        test_idx_subset=idx_current_nodes
-                    )
-                all_preds.append(preds.cpu().numpy())
-                all_targets.append(target.cpu().numpy())
+    #             if args.structure == 'none':
+    #                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
+    #                 preds = mtgnn_model(
+    #                     recon_x,
+    #                     mask_remaining=args.mask_remaining,
+    #                     test_idx_subset=idx_current_nodes
+    #                 )
+    #             all_preds.append(preds.cpu().numpy())
+    #             all_targets.append(target.cpu().numpy())
 
-        # 计算各时间步指标
-        yhat = np.concatenate(all_preds, axis=0)
-        real = np.concatenate(all_targets, axis=0)
-        mae_list = []
-        rmse_list = []
-        for i in range(args.seq_out_len):
-            pred_i = yhat[..., i]
-            real_i = real[..., i]
-            mae_val, rmse_val, _, _ = metric(torch.tensor(pred_i), torch.tensor(real_i))
-            mae_list.append(mae_val)
-            rmse_list.append(rmse_val)
-        # 返回结构一致的列表
-        return mae_list, rmse_list
+    #     # 计算各时间步指标
+    #     yhat = np.concatenate(all_preds, axis=0)
+    #     real = np.concatenate(all_targets, axis=0)
+    #     mae_list = []
+    #     rmse_list = []
+    #     for i in range(args.seq_out_len):
+    #         pred_i = yhat[..., i]
+    #         real_i = real[..., i]
+    #         mae_val, rmse_val, _, _ = metric(torch.tensor(pred_i), torch.tensor(real_i))
+    #         mae_list.append(mae_val)
+    #         rmse_list.append(rmse_val)
+    #     # 返回结构一致的列表
+    #     return mae_list, rmse_list
 
 
         
