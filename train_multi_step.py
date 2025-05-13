@@ -140,6 +140,7 @@ def main(runid):
         # === 初始化 Non-Structure VSF 模型 ===
         vsf_model = NonStructureVSFModel(
             num_vars=num_vars,
+            seq_len=args.seq_in_len,  # 从参数传入时间步长（例如12）
             embed_dim=args.embed_dim,
             latent_dim=args.latent_dim,
             num_heads=args.num_heads,
