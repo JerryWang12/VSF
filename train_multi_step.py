@@ -266,7 +266,7 @@ def main(runid):
                 # === 2. 使用 MTGNN 进行最终预测 ===
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, D, T)
                 preds = mtgnn_model(
-                    recon_input, 
+                    recon_x, 
                     args=args,  # 传递参数
                     mask_remaining=args.mask_remaining,
                     test_idx_subset=idx_current_nodes
@@ -302,7 +302,7 @@ def main(runid):
                 # 使用MTGNN预测
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
                 preds = mtgnn_model(
-                    recon_input, 
+                    recon_x, 
                     args=args,  # 传递参数
                     mask_remaining=args.mask_remaining,
                     test_idx_subset=idx_current_nodes
