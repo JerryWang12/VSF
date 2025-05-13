@@ -125,6 +125,7 @@ def main(runid):
     # Non-Structure VSF初始化
     if args.vsf_non_structure:
         print("\nInitializing VSF Non-Structure Model...\n")
+        args.data = args.vsf_non_structure_data
         train_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='train')
         val_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='val')
         test_loader = get_dataloader(args.vsf_non_structure_data, batch_size=args.batch_size, split='test')
