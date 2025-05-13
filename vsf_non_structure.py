@@ -173,15 +173,3 @@ class NonStructuralVSFDataset(Dataset):
 def get_dataloader(data_dir, batch_size=64, split='train'):
     dataset = NonStructuralVSFDataset(data_dir, split=split)
     return DataLoader(dataset, batch_size=batch_size, shuffle=(split == 'train'))
-
-# 测试完整流程
-if __name__ == "__main__":
-    model = NonStructureVSFModel(num_vars=137).cuda()
-    dataloader = get_dataloader('./data/SOLAR_non_structural', batch_size=32, split='train')
-
-    for x, mask, target in dataloader:
-        x, mask, target = x.cuda(), mask.cuda(), target.cuda()
-        recon_x, mu, logvar = model(x, mask)
-        loss, recon_loss, kl_loss = model.compute_loss(recon_x, x, mu, logvar, mask)
-        print(f"Loss: {loss.item()}, Recon Loss: {recon_loss.item()}, KL Loss: {kl_loss.item()}")
-        break
