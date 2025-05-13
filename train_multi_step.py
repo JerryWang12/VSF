@@ -265,8 +265,12 @@ def main(runid):
 
                 # === 2. 使用 MTGNN 进行最终预测 ===
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, D, T)
-                preds = mtgnn_model(recon_x).squeeze(1).permute(0, 2, 1)
-
+                preds = mtgnn_model(
+                    recon_input, 
+                    args=args,  # 传递参数
+                    mask_remaining=args.mask_remaining,
+                    test_idx_subset=idx_current_nodes
+                )
                 # === 3. 计算损失 ===
                 loss, recon_loss, kl_loss = vsf_model.compute_loss(preds, x, mu, logvar, mask)
                 loss.backward()
@@ -297,7 +301,12 @@ def main(runid):
                 recon_x, mu, logvar = vsf_model(x, mask)
                 # 使用MTGNN预测
                 recon_x = recon_x.permute(0, 3, 2, 1)  # (B, E, N, T)
-                preds = mtgnn_model(recon_x).squeeze(1).permute(0, 2, 1)
+                preds = mtgnn_model(
+                    recon_input, 
+                    args=args,  # 传递参数
+                    mask_remaining=args.mask_remaining,
+                    test_idx_subset=idx_current_nodes
+                )
                 all_preds.append(preds.cpu().numpy())
                 all_targets.append(target.cpu().numpy())
 
