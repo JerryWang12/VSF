@@ -123,17 +123,25 @@ class NonStructureVSFModel(nn.Module):
         return self.cvae.compute_loss(recon_x, x, mu, logvar, mask)
 
 
-# 5. 推理与部署模块
+# 5. 推理与部署模块 (修正版)
 class NonStructuralVSFDataset(Dataset):
     def __init__(self, data_dir, split='train', seq_len=12, pred_len=12, mask_ratio=0.15, seed=42):
         np.random.seed(seed)
-        data_file = os.path.join(data_dir, f"{split}_data.npy")
-        target_file = os.path.join(data_dir, f"{split}_target.npy")
-        self.data = np.load(data_file)
-        self.target = np.load(target_file)
+
+        # 修改数据文件名
+        data_file = os.path.join(data_dir, f"{split}.npz")
+        if not os.path.exists(data_file):
+            raise FileNotFoundError(f"数据文件 {data_file} 不存在，请检查路径和文件名是否正确。")
+        
+        # 读取 .npz 数据
+        data = np.load(data_file)
+        self.data = data['x']
+        self.target = data['y']
         self.seq_len = seq_len
         self.pred_len = pred_len
         self.masks = self._generate_masks(mask_ratio)
+
+        print(f"Loaded {split} data with shape: {self.data.shape}, {self.target.shape}")
 
     def _generate_masks(self, mask_ratio):
         masks = np.ones_like(self.data, dtype=np.float32)
@@ -158,6 +166,7 @@ class NonStructuralVSFDataset(Dataset):
 def get_dataloader(data_dir, batch_size=64, split='train'):
     dataset = NonStructuralVSFDataset(data_dir, split=split)
     return DataLoader(dataset, batch_size=batch_size, shuffle=(split == 'train'))
+
 
 
 # 测试完整流程
